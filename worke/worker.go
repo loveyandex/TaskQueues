@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	
 	"context"
 	"log"
 	"math/rand"
@@ -59,19 +59,19 @@ func main() {
 
 	go func() {
 		for d := range msgs {
-			log.Printf("Received a message: %s %v", d.Body, time.Now())
-			dotCount := bytes.Count(d.Body, []byte("."))
-			t := time.Duration(dotCount)
-			time.Sleep(t * time.Second)
+			// log.Printf("Received a message: %s %v", d.Body, time.Now())
+			// dotCount := bytes.Count(d.Body, []byte("."))
+			// t := time.Duration(dotCount)
+			// time.Sleep(t * time.Second)
 
-			res, _ := worke.UserCollection.InsertOne(context.TODO(), bson.M{
+			 worke.UserCollection.InsertOne(context.TODO(), bson.M{
 				"userId":    rand.Float32(),
 				"id":        rand.Int63(),
 				"createdAt":     time.Now(),
 				"completed": false,
 			})
 
-			log.Printf("%v", *res)
+			// log.Printf("%v", *res)
 			d.Ack(false)
 		}
 	}()
