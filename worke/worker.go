@@ -68,7 +68,7 @@ func main() {
 				"userId":    rand.Float32(),
 				"id":        rand.Int63(),
 				"createdAt":     time.Now(),
-				"completed": false,
+				"completed": true,
 			})
 
 			// log.Printf("%v", *res)
