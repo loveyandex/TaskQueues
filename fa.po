@@ -1694,7 +1694,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:helpdesk.helpdesk_tickets_view_search
 #, python-format
 msgid "My Tickets"
-msgstr ""
+msgstr "تیکت‌های من"
 
 #. module: helpdesk
 #. openerp-web
