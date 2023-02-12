@@ -1,18 +1,15 @@
 package worke
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
-	"time"
 
-	worke "github.com/loveyandex/TaskQueuesRmq/worke/db"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -21,7 +18,7 @@ import (
 const DBName = "matching-engine"
 
 //GetMongoDbConnection get connection of mongodb
-var Client, err = GetMongoDbConnection()
+var Client, _ = GetMongoDbConnection()
 
 func Collection(CollectionName string) *mongo.Collection {
 	// fmt.Printf("robinClient %v \n", robinClient)
@@ -94,19 +91,9 @@ func MongoCpu() {
 		nil,    // args
 	)
 	failOnError(err, "Failed to register a consumer")
-
 	var forever chan struct{}
 
-	engine := &MongoME{Col: Collection("engine")}
-	fmt.Printf("engine: %v\n", engine)
-	
-	engine.CreateCoinEngin(&CoinEngine{Coin: &Coin{Symbol: "USDTRLS"}})
-
-	// err = rdb.Set(ctx, "limits", "[]", 0).Err()
-	// err = rdb.Set(ctx, "markets", "[]", 0).Err()
-	// if err != nil {
-	// 	panic(err)
-	// }
+	obc := &OrderBookCollection{Col: Collection("orders")}
 
 	go func() {
 		for d := range msgs {
@@ -114,41 +101,18 @@ func MongoCpu() {
 			var newOrder OrderBook
 			json.Unmarshal(d.Body, &newOrder)
 
-			// if newOrder.Type == "" {
-			// 	ob, _ := engine.LimitOrders()
-			// 	fmt.Printf("ob: %v\n", len(ob))
+			if newOrder.Type == "market" || newOrder.Type == "limit" {
+				newOrder.Status = Open
+				irrrr, err := obc.InsertOrder(&newOrder)
 
-			// 	engine.PushLimitOrder(&newOrder)
-			// 	// fmt.Printf("ob2: %v\n", len(ob2))
-
-			// } else {
-
-			// 	ob, _ := engine.MarketOrders()
-			// 	fmt.Printf("ob: %v\n", len(ob))
-			// 	limits, _ := engine.LimitOrders()
-			// 	fmt.Printf("limits len: %v\n", len(limits))
-
-			// 	ob2, _ := engine.PushMarketOrder(&newOrder)
-			// 	fmt.Printf("markets len: %v\n", len(ob2))
-
-			// }
-
-			if newOrder.Type == "limit" {
-
-				i, _ := worke.UserCollection.CountDocuments(context.TODO(), bson.M{})
-				fmt.Printf("usrs len: %v\n", i)
+				newOrder.ID = irrrr.InsertedID.(primitive.ObjectID)
+				// newOrder.FillAmount = (rand.Float64()) * newOrder.Amount
+				// obc.UpdateOrderFillamountAndStatus(&newOrder, PartiallyFilled)
+				if err != nil {
+					panic(err)
+				}
 
 			}
-			dotCount := bytes.Count(d.Body, []byte("."))
-			t := time.Duration(dotCount)
-			time.Sleep(t * time.Second)
-
-			worke.UserCollection.InsertOne(context.TODO(), bson.M{
-				"userId":    rand.Float32(),
-				"id":        rand.Int63(),
-				"createdAt": time.Now(),
-				"completed": true,
-			})
 
 			// log.Printf("%v", *res)
 			d.Ack(false)
@@ -163,9 +127,12 @@ type MongoME struct {
 	Col *mongo.Collection
 }
 
-type CoinEngine struct {
+type OrderBookCollection struct {
+	Col *mongo.Collection
+}
 
-	Coin *Coin `json:"coin" bson:"coin"`
+type CoinEngine struct {
+	Coin    *Coin `json:"coin" bson:"coin"`
 	Markets []OrderBook
 
 	Limits []OrderBook
@@ -175,7 +142,6 @@ type Coin struct {
 }
 
 func (me *MongoME) CoinEngin(symbol string) (*CoinEngine, error) {
-	fmt.Printf("me.Col: %v\n", me.Col)
 	var E CoinEngine
 	err := me.Col.FindOne(context.TODO(), bson.M{"coin.symbol": symbol}).Decode(&E)
 
@@ -188,9 +154,87 @@ func (me *MongoME) CreateCoinEngin(ce *CoinEngine) (*mongo.InsertOneResult, erro
 }
 
 func (me *MongoME) PushMarket(ce *CoinEngine, m *OrderBook) (*mongo.UpdateResult, error) {
-	fmt.Printf("me.Col: %v\n", me.Col)
 	filter := bson.M{"coin.symbol": ce.Coin.Symbol}
 	updt := bson.M{"$push": bson.M{"markets": m}}
 	t, err := me.Col.UpdateOne(context.TODO(), filter, updt)
 	return t, err
+}
+
+func (bc *OrderBookCollection) InsertOrder(o *OrderBook) (*mongo.InsertOneResult, error) {
+	t, err := bc.Col.InsertOne(context.TODO(), o)
+	return t, err
+}
+
+func (bc *OrderBookCollection) UpdateOrderStatus(o *OrderBook, os OrderStatus) (*mongo.UpdateResult, error) {
+
+	filter := bson.M{"_id": o.ID}
+	updt := bson.M{"$set": bson.M{"status": os}}
+
+	t, err := bc.Col.UpdateOne(context.TODO(), filter, updt)
+	return t, err
+}
+
+func (bc *OrderBookCollection) UpdateOrderFillamountAndStatus(o *OrderBook, os OrderStatus,trde *Trade) (*mongo.UpdateResult, error) {
+
+	filter := bson.M{"_id": o.ID}
+	updt := bson.M{"$set": bson.M{"status": os, "fill_amount": o.FillAmount},"$push": bson.M{"trades": trde}}
+	t, err := bc.Col.UpdateOne(context.TODO(), filter, updt)
+	return t, err
+}
+
+func (bc *OrderBookCollection) BuyLimitOrders() ([]OrderBook, error) {
+
+	opts := options.Find().SetSkip(0 * 1000).SetLimit(20000)
+
+	query := bson.M{
+		"type": "limit",
+		"side": "buy",
+		"$or": bson.A{
+			bson.D{{"status", "open"}},
+			bson.D{{"status", "partiallyfilled"}},
+		}}
+
+	//sort by time added default
+	// Sort by `price` field descending
+	opts.SetSort(bson.D{{"price", -1}})
+	cursor, err2 := bc.Col.Find(context.TODO(), query, opts)
+	if err2 != nil {
+		return nil, err2
+	}
+	var results []OrderBook
+	f := cursor.All(context.Background(), &results)
+	if f != nil {
+		return nil, f
+	}
+	return results, nil
+
+}
+
+func (bc *OrderBookCollection) ShortLimitOrders() ([]OrderBook, error) {
+
+	opts := options.Find().SetSkip(0 * 1000).SetLimit(20000)
+
+	query := bson.M{
+		"type": "limit",
+		"side": "sell",
+		"$or": bson.A{
+			bson.D{{"status", "open"}},
+			bson.D{{"status", "partiallyfilled"}},
+		}}
+
+	//sort by time added default
+	// Sort by `price` field descending
+	opts.SetSort(bson.D{{"price", 1}})
+
+	cursor, err2 := bc.Col.Find(context.TODO(), query, opts)
+	if err2 != nil {
+		return nil, err2
+	}
+	var results []OrderBook
+	f := cursor.All(context.Background(), &results)
+	if f != nil {
+		return nil, f
+	}
+	return results, nil
+
 }

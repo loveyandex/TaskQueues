@@ -19,7 +19,6 @@ func failOnError(err error, msg string) {
 	}
 }
 
-
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
@@ -39,7 +38,15 @@ func main() {
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	failOnError(err, "Failed to publish a message")
+	qme, err := ch.QueueDeclare(
+		"me",  // name
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	failOnError(err, "Failed to declare a queue")
 
 	app := fiber.New()
 	app.Use(cors.New())
@@ -64,7 +71,35 @@ func main() {
 				ContentType:  "text/plain",
 				Body:         b,
 			})
+		failOnError(err, "Failed to publish a message")
 		// log.Printf(" [x] Sent %s", b)
+		
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	app.Get("/me", func(c *fiber.Ctx) error {
+		var limitOrder worke.OrderBook
+		err := c.QueryParser(&limitOrder)
+
+		b, err := json.Marshal(limitOrder)
+		failOnError(err, "new error")
+		
+		if err != nil {
+			return err
+		}
+
+		err = ch.Publish(
+			"",       // exchange
+			qme.Name, // routing key
+			false,    // mandatory
+			false,
+			amqp.Publishing{
+				DeliveryMode: amqp.Persistent,
+				ContentType:  "text/plain",
+				Body:         b,
+			})
+		// log.Printf(" [x] Sent %s", b)
+		failOnError(err, "Failed to publish a message")
 
 		return c.SendStatus(fiber.StatusOK)
 	})
@@ -72,7 +107,7 @@ func main() {
 	app.Post("/", func(c *fiber.Ctx) error {
 		var limitOrder worke.OrderBook
 		err := c.BodyParser(&limitOrder)
-		
+
 		if err != nil {
 			return err
 		}

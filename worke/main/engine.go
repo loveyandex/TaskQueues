@@ -4,5 +4,9 @@ import "github.com/loveyandex/TaskQueuesRmq/worke"
 
 func main() {
 
-	worke.Cpu()
+	go func() {
+		worke.MongoMOE()
+
+	}()
+	worke.MongoCpu()
 }

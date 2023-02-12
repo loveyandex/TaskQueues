@@ -12,6 +12,7 @@ import (
 	worke "github.com/loveyandex/TaskQueuesRmq/worke/db"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -19,12 +20,43 @@ import (
 var ctx = context.Background()
 
 type OrderBook struct {
+	ID       primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	TraderId primitive.ObjectID `json:"trader_id" bson:"trader_id"`
+	//send by trader
+	Symbol string
+	Price  float64
+	Amount float64
+	Type   string
+	Side   string
+	//set bby M E
+	FillAmount float64 `bson:"fill_amount,omitempty" json:"fill_amount,omitempty"`
+	Status     OrderStatus
+
+	//each order make many trades
+	Trades []Trade 
+}
+
+type OrderStatus string
+
+const (
+	Open            OrderStatus = "open"
+	Fill            OrderStatus = "filled"
+	PartiallyFilled OrderStatus = "partiallyfilled"
+	Failed          OrderStatus = "failed"
+	Canceled        OrderStatus = "canceld"
+)
+type Trade struct {
+
+	ID       primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+ 	//send by trader
 	Symbol string
 	Price  float64
 	Amount float64
 	Type   string
 	Side   string
 }
+
+
 
 func failOnError(err error, msg string) {
 	if err != nil {
