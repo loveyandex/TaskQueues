@@ -66,7 +66,8 @@ func MongoMOE() {
 			if err2 != nil {
 
 			}
-				fmt.Printf("shorts len: %v\n", len(shorts))
+			fmt.Printf("shorts len: %v\n", len(shorts))
+
 			obc.MATCH(shorts, longers)
 
 			// log.Printf("%v", *res)
@@ -78,9 +79,9 @@ func MongoMOE() {
 	<-forever
 }
 
-func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) {
+func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) bool{
 	//fill buy order books by possible shorters
-	 
+
 	for _, ashort := range shorts {
 
 	xxxx:
@@ -97,12 +98,12 @@ func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) {
 					//in this model short filled all
 					ashort.FillAmount = ashort.FillAmount + possible_short_amount
 					trd := &Trade{
-						ID: primitive.NewObjectID(),
+						ID:     primitive.NewObjectID(),
 						Symbol: along.Symbol,
 						Price:  along.Price,
 						Amount: possible_short_amount,
 						Type:   ashort.Type,
-						Side: ashort.Side,
+						Side:   ashort.Side,
 					}
 					obe.UpdateOrderFillamountAndStatus(&ashort, Fill, trd)
 
@@ -113,17 +114,17 @@ func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) {
 					} else {
 						obe.UpdateOrderFillamountAndStatus(&along, PartiallyFilled, trd)
 					}
-					return
+					return true
 					break xxxx
 
 				} else {
 					trd := &Trade{
-						ID: primitive.NewObjectID(),
+						ID:     primitive.NewObjectID(),
 						Symbol: along.Symbol,
 						Price:  along.Price,
 						Amount: possible_long_amount,
 						Type:   along.Type,
-						Side: along.Side,
+						Side:   along.Side,
 					}
 					//in this model short filled all
 					along.FillAmount = along.FillAmount + possible_long_amount
@@ -136,7 +137,7 @@ func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) {
 					} else {
 						obe.UpdateOrderFillamountAndStatus(&ashort, PartiallyFilled, trd)
 					}
-					return
+					return true
 
 				}
 
@@ -145,5 +146,6 @@ func (obe *OrderBookCollection) MATCH(shorts []OrderBook, longs []OrderBook) {
 		}
 
 	}
+	return false
 
 }

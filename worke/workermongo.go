@@ -15,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-const DBName = "matching-engine"
+const DBName = "matching-engine3"
 
 //GetMongoDbConnection get connection of mongodb
 var Client, _ = GetMongoDbConnection()
@@ -103,6 +103,7 @@ func MongoCpu() {
 
 			if newOrder.Type == "market" || newOrder.Type == "limit" {
 				newOrder.Status = Open
+				newOrder.Trades=[]Trade{}
 				irrrr, err := obc.InsertOrder(&newOrder)
 
 				newOrder.ID = irrrr.InsertedID.(primitive.ObjectID)

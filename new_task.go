@@ -73,7 +73,7 @@ func main() {
 			})
 		failOnError(err, "Failed to publish a message")
 		// log.Printf(" [x] Sent %s", b)
-		
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -83,7 +83,7 @@ func main() {
 
 		b, err := json.Marshal(limitOrder)
 		failOnError(err, "new error")
-		
+
 		if err != nil {
 			return err
 		}
@@ -128,6 +128,38 @@ func main() {
 				ContentType:  "text/plain",
 				Body:         b,
 			})
+		// log.Printf(" [x] Sent %s", b)
+
+		return c.SendStatus(fiber.StatusOK)
+	})
+	app.Post("/me", func(c *fiber.Ctx) error {
+		var limitOrder worke.OrderBook
+		err := c.BodyParser(&limitOrder)
+
+		if err != nil {
+			return err
+		}
+
+		b, err := json.Marshal(limitOrder)
+
+		if err != nil {
+			return err
+		}
+
+		err = ch.Publish(
+			"",       // exchange
+			qme.Name, // routing key
+			false,    // mandatory
+			false,
+			amqp.Publishing{
+				DeliveryMode: amqp.Persistent,
+				ContentType:  "text/plain",
+				Body:         b,
+			})
+
+		if err != nil {
+			return err
+		}
 		// log.Printf(" [x] Sent %s", b)
 
 		return c.SendStatus(fiber.StatusOK)
