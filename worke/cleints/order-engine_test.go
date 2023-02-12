@@ -13,6 +13,17 @@ import (
 	"github.com/loveyandex/TaskQueuesRmq/worke"
 )
 
+func TestPushOrders3000(t *testing.T) {
+	fmt.Printf("time.Now(): %v\n", time.Now())
+	j:=0
+	for i := 0; i < 10000; i++ {
+		j++
+		MkOrdr() 
+	}
+	fmt.Printf("i: %v\n", j)
+	fmt.Printf("time.Now(): %v\n", time.Now())
+	 
+}
 func TestPushOrders(t *testing.T) {
 	// for i := 0; i < 333; i++ {
 	// 	MkOrdr()
@@ -42,7 +53,7 @@ func TestPushOrders(t *testing.T) {
 
 func MkOrdr() {
 
-	url := "http://127.0.0.1:4000"
+	url := "http://127.0.0.1:4000/me"
 	method := "POST"
 
 	side := "sell"
@@ -55,7 +66,7 @@ func MkOrdr() {
 	}
 
 	ob := worke.OrderBook{Symbol: "BTCUSDT", Price: (12000 * rand.Float64()), Amount: ((10 * rand.Float64()) + 0.001), Type: typp, Side: side}
-	fmt.Printf("ob: %v\n", ob.Type)
+	// fmt.Printf("ob: %v\n", ob.Type)
 
 	b, err := json.Marshal(ob)
 	if err != nil {
@@ -78,11 +89,11 @@ func MkOrdr() {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(string(body))
+	// fmt.Println(string(body))
 
 }

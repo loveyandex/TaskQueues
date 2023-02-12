@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,6 +18,23 @@ func MongoMOE_Atomic() {
 	ch, err := conn.Channel()
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
+
+	
+
+	ch2, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch2.Close()
+
+	err = ch2.ExchangeDeclare(
+		  "orderbooks",   // name
+		  "fanout", // type
+		  true,     // durable
+		  false,    // auto-deleted
+		  false,    // internal
+		  false,    // no-wait
+		  nil,      // arguments
+	)
+	failOnError(err, "Failed to declare an exchange")
 
 	q, err := ch.QueueDeclare(
 		"me",  // name
@@ -36,6 +52,7 @@ func MongoMOE_Atomic() {
 		false, // global
 	)
 	failOnError(err, "Failed to set QoS")
+ 
 
 	msgs, err := ch.Consume(
 		q.Name, // queue
@@ -53,16 +70,46 @@ func MongoMOE_Atomic() {
 	fmt.Printf("engine: %v\n", engine)
 
 	obc := &OrderBookCollection{Col: Collection("orders")}
+	fmt.Printf("obc: %v\n", obc)
 
 	go func() {
 		for d := range msgs {
-			log.Printf("Received a message: %s %v", d.Body, time.Now())
+			// log.Printf("Received a message: %s %v", d.Body, time.Now())
 			var newOrder OrderBook
 			json.Unmarshal(d.Body, &newOrder)
 			newOrder.Trades = []Trade{}
 			newOrder.Status = Open
 
 			obc.MATCH_Atomic(&newOrder)
+			// i, err := obc.OrderCounts()
+			// if err != nil {
+			// 	failOnError(err, "")
+			// }
+
+			// fmt.Printf("\"counts \": %v\n",i )
+
+			ob, err := obc.BuyLimitOrders()
+			// fmt.Printf("len(ob): %v\n", len(ob))
+			if err != nil {
+				failOnError(err, "")
+			}
+
+			b, err := json.Marshal(ob)
+			if err != nil {
+				failOnError(err, "")
+			}
+
+			err = ch.PublishWithContext(ctx,
+				"orderbooks", // exchange
+				"",     // routing key
+				false,  // mandatory
+				false,  // immediate
+				amqp.Publishing{
+					  ContentType: "text/plain",
+					  Body:        []byte(b),
+				})
+		    failOnError(err, "Failed to publish a message")
+		//      fmt.Printf("time.Now(): %v\n", time.Now())
 
 			// log.Printf("%v", *res)
 			d.Ack(false)
@@ -99,12 +146,12 @@ func (obe *OrderBookCollection) Cusume_New_Sell_Order__(ashort *OrderBook) error
 	for _, along := range longers {
 
 		if ashort.Price <= along.Price {
-			fmt.Printf("ashort: %v\n", ashort)
+			// fmt.Printf("ashort: %v\n", ashort)
 			possible_short_amount := (ashort.Amount - ashort.FillAmount)
 			possible_long_amount := (along.Amount - along.FillAmount)
 
 			if (possible_long_amount - possible_short_amount) >= 0 {
-				fmt.Printf("along: %v\n", along)
+				// fmt.Printf("along: %v\n", along)
 
 				//in this model short filled all
 				ashort.FillAmount = ashort.FillAmount + possible_short_amount
@@ -191,12 +238,12 @@ func (obe *OrderBookCollection) Cusume_New_Buy_Order__(along *OrderBook) error {
 	for _, shoert := range shoerts {
 
 		if along.Price >= shoert.Price {
-			fmt.Printf("Cusume_New_Buy_Order__ along: %v\n", along)
+			// fmt.Printf("Cusume_New_Buy_Order__ along: %v\n", along)
 			possible_short_amount := (shoert.Amount - shoert.FillAmount)
 			possible_long_amount := (along.Amount - along.FillAmount)
 
 			if (possible_short_amount - possible_long_amount) >= 0 {
-				fmt.Printf("Cusume_New_Buy_Order__ short: %v\n", shoert)
+				// fmt.Printf("Cusume_New_Buy_Order__ short: %v\n", shoert)
 
 				//in this model long filled all
 				along.FillAmount = along.FillAmount + possible_long_amount
@@ -234,7 +281,7 @@ func (obe *OrderBookCollection) Cusume_New_Buy_Order__(along *OrderBook) error {
 					Symbol: along.Symbol,
 					Price:  shoert.Price,
 					Amount: possible_short_amount,
-					Type:  shoert.Type,
+					Type:   shoert.Type,
 					Side:   shoert.Side,
 				}
 				//in this model long filled all

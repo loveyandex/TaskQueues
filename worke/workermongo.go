@@ -103,7 +103,7 @@ func MongoCpu() {
 
 			if newOrder.Type == "market" || newOrder.Type == "limit" {
 				newOrder.Status = Open
-				newOrder.Trades=[]Trade{}
+				newOrder.Trades = []Trade{}
 				irrrr, err := obc.InsertOrder(&newOrder)
 
 				newOrder.ID = irrrr.InsertedID.(primitive.ObjectID)
@@ -175,17 +175,17 @@ func (bc *OrderBookCollection) UpdateOrderStatus(o *OrderBook, os OrderStatus) (
 	return t, err
 }
 
-func (bc *OrderBookCollection) UpdateOrderFillamountAndStatus(o *OrderBook, os OrderStatus,trde *Trade) (*mongo.UpdateResult, error) {
+func (bc *OrderBookCollection) UpdateOrderFillamountAndStatus(o *OrderBook, os OrderStatus, trde *Trade) (*mongo.UpdateResult, error) {
 
 	filter := bson.M{"_id": o.ID}
-	updt := bson.M{"$set": bson.M{"status": os, "fill_amount": o.FillAmount},"$push": bson.M{"trades": trde}}
+	updt := bson.M{"$set": bson.M{"status": os, "fill_amount": o.FillAmount}, "$push": bson.M{"trades": trde}}
 	t, err := bc.Col.UpdateOne(context.TODO(), filter, updt)
 	return t, err
 }
 
 func (bc *OrderBookCollection) BuyLimitOrders() ([]OrderBook, error) {
 
-	opts := options.Find().SetSkip(0 * 1000).SetLimit(20000)
+	opts := options.Find().SetSkip(0 * 1000).SetLimit(200)
 
 	query := bson.M{
 		"type": "limit",
@@ -208,6 +208,42 @@ func (bc *OrderBookCollection) BuyLimitOrders() ([]OrderBook, error) {
 		return nil, f
 	}
 	return results, nil
+
+}
+func (bc *OrderBookCollection) OrderBooks() ([]OrderBook, error) {
+
+	opts := options.Find().SetSkip(0 * 1000).SetLimit(200)
+
+	query := bson.M{
+		"$or": bson.A{
+			bson.D{{"status", "open"}},
+			bson.D{{"status", "partiallyfilled"}},
+		}}
+
+	//sort by time added default
+	// Sort by `price` field descending
+	opts.SetSort(bson.D{{"price", -1}})
+	cursor, err2 := bc.Col.Find(context.TODO(), query, opts)
+	if err2 != nil {
+		return nil, err2
+	}
+	var results []OrderBook
+	f := cursor.All(context.Background(), &results)
+	if f != nil {
+		return nil, f
+	}
+	return results, nil
+
+}
+func (bc *OrderBookCollection) OrderCounts() (int64, error) {
+
+	query := bson.M{}
+
+	//sort by time added default
+	// Sort by `price` field descending
+	iii, err2 := bc.Col.CountDocuments(context.TODO(), query)
+
+	return iii, err2
 
 }
 

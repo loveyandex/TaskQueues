@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>websocker</title>
+  </head>
+  <body>
+    <div id="coin"></div>
+    <input id="text" />
+    <script>
+      // Create WebSocket connection.
+      const socket = new WebSocket("ws://localhost:4000/ws/btc?v=2323");
+
+      // Connection opened
+      socket.addEventListener("open", (event) => {
+        socket.send("Hello Server!dddddddddddd");
+      });
+
+      // Listen for messages
+      socket.addEventListener("message", (event) => {
+        console.log("Message from server:\n");
+
+        console.log(JSON.parse(event.data));
+
+      //   socket.close(3000,"fuck u")
+
+      });
+    </script>
+  </body>
+</html>
