@@ -7,38 +7,57 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	worke "github.com/loveyandex/TaskQueuesRmq/worke/db"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/bson"
-
-	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-var ctx = context.Background()
+const DBName = "matching-engine"
 
-type OrderBook struct {
-	Symbol string
-	Price  float64
-	Amount float64
-	Type   string
-	Side   string
+//GetMongoDbConnection get connection of mongodb
+var Client, err = GetMongoDbConnection()
+
+func Collection(CollectionName string) *mongo.Collection {
+	// fmt.Printf("robinClient %v \n", robinClient)
+	collection := Client.Database(DBName).Collection(CollectionName)
+	return collection
 }
 
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Panicf("%s: %s", msg, err)
+func GetMongoDbConnection() (*mongo.Client, error) {
+
+	dbserver := os.Getenv("MONGODBHOST")
+	URIII := "mongodb://" + dbserver + "/?replicaSet=myReplicaSet"
+	if dbserver == "" {
+		dbserver = "localhost"
+		URIII = "mongodb://" + dbserver + ":27017/"
+
 	}
+	fmt.Println("dbserver ", dbserver)
+	fmt.Println("uriii ", URIII)
+
+	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(URIII))
+	// fmt.Printf("db client after connection %v ", client)
+
+	if err != nil {
+		fmt.Printf("err %v \n", err)
+		log.Fatal(err)
+	}
+
+	err = client.Ping(context.Background(), readpref.Primary())
+	if err != nil {
+		fmt.Printf("err client.Ping %v \n", err)
+		log.Fatal(err)
+	}
+	return client, nil
 }
 
-func Cpu() {
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+func MongoCpu() {
 
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
@@ -78,8 +97,10 @@ func Cpu() {
 
 	var forever chan struct{}
 
-	engine := &MacEngine{Client: rdb}
+	engine := &MongoME{Col: Collection("engine")}
 	fmt.Printf("engine: %v\n", engine)
+	
+	engine.CreateCoinEngin(&CoinEngine{Coin: &Coin{Symbol: "USDTRLS"}})
 
 	// err = rdb.Set(ctx, "limits", "[]", 0).Err()
 	// err = rdb.Set(ctx, "markets", "[]", 0).Err()
@@ -138,90 +159,38 @@ func Cpu() {
 	<-forever
 }
 
-type MacEngine struct {
-	Client *redis.Client
+type MongoME struct {
+	Col *mongo.Collection
 }
 
-func (me *MacEngine) LimitOrders() ([]OrderBook, error) {
-	s, err := me.Client.Get(ctx, "limits").Result()
-	if err != nil {
-		return nil, err
-	}
-	var ob []OrderBook
-	err = json.Unmarshal([]byte(s), &ob)
+type CoinEngine struct {
 
-	return ob, err
+	Coin *Coin `json:"coin" bson:"coin"`
+	Markets []OrderBook
 
+	Limits []OrderBook
+}
+type Coin struct {
+	Symbol string
 }
 
-func (me *MacEngine) MarketOrders() ([]OrderBook, error) {
-	s, err := me.Client.Get(ctx, "markets").Result()
-	if err != nil {
-		fmt.Printf("err: %v\n", err)
-		return nil, err
-	}
-	var ob []OrderBook
-	err = json.Unmarshal([]byte(s), &ob)
+func (me *MongoME) CoinEngin(symbol string) (*CoinEngine, error) {
+	fmt.Printf("me.Col: %v\n", me.Col)
+	var E CoinEngine
+	err := me.Col.FindOne(context.TODO(), bson.M{"coin.symbol": symbol}).Decode(&E)
 
-	return ob, err
-
+	return &E, err
 }
 
-func (me *MacEngine) PushLimitOrder(ob *OrderBook) ([]OrderBook, error) {
-
-	s, err := me.Client.Get(ctx, "limits").Result()
-	if err != nil {
-		return nil, err
-	}
-	var obs []OrderBook
-	err = json.Unmarshal([]byte(s), &obs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	obs = append(obs, *ob)
-
-	b, err := json.Marshal(obs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = me.Client.Set(ctx, "limits", string(b), 0).Err()
-	if err != nil {
-		panic(err)
-	}
-
-	return obs, err
-
+func (me *MongoME) CreateCoinEngin(ce *CoinEngine) (*mongo.InsertOneResult, error) {
+	t, err := me.Col.InsertOne(context.TODO(), ce)
+	return t, err
 }
 
-func (me *MacEngine) PushMarketOrder(ob *OrderBook) ([]OrderBook, error) {
-	s, err := me.Client.Get(ctx, "markets").Result()
-	if err != nil {
-		return nil, err
-	}
-	var obs []OrderBook
-	err = json.Unmarshal([]byte(s), &obs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	obs = append(obs, *ob)
-
-	b, err := json.Marshal(obs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = me.Client.Set(ctx, "markets", string(b), 0).Err()
-	if err != nil {
-		panic(err)
-	}
-
-	return obs, err
-
+func (me *MongoME) PushMarket(ce *CoinEngine, m *OrderBook) (*mongo.UpdateResult, error) {
+	fmt.Printf("me.Col: %v\n", me.Col)
+	filter := bson.M{"coin.symbol": ce.Coin.Symbol}
+	updt := bson.M{"$push": bson.M{"markets": m}}
+	t, err := me.Col.UpdateOne(context.TODO(), filter, updt)
+	return t, err
 }
