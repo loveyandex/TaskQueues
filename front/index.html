@@ -1,17 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>websocker</title>
   </head>
   <body>
+    <div id="container" style="height: 400px"></div>
     <div id="coin"></div>
     <input id="text" />
     <script>
       // Create WebSocket connection.
       const socket = new WebSocket("ws://localhost:4000/ws/btc?v=2323");
+      var K = 0;
+      var K1 = 0;
 
       // Connection opened
       socket.addEventListener("open", (event) => {
@@ -20,12 +25,35 @@
 
       // Listen for messages
       socket.addEventListener("message", (event) => {
-        console.log("Message from server:\n");
+        // console.log("Message from server:\n");
 
-        console.log(JSON.parse(event.data));
+        // console.log(JSON.parse(event.data));
+        K++;
 
-      //   socket.close(3000,"fuck u")
+        //   socket.close(3000,"fuck u")
+      });
 
+      setInterval(() => {
+        console.log("speeds is " + (K - K1) + " htz");
+        chart.series[0].addPoint(["htz", K - K1]);
+        K1 = K;
+      }, 1000);
+    </script>
+
+    <script>
+      var chart = Highcharts.chart("container", {
+        xAxis: {
+          minPadding: 0.05,
+          maxPadding: 0.05,
+        },
+        series: [
+          {
+            name: "hz",
+            color: "#000",
+            dashStyle: "",
+            data: [],
+          },
+        ],
       });
     </script>
   </body>

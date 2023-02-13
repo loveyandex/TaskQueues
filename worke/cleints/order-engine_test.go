@@ -31,22 +31,23 @@ func TestPushOrders(t *testing.T) {
 	// }
 	go func() {
 		for {
-			MkOrdr()
-			time.Sleep(time.Microsecond * 1)
+			MkOrdr() 
 		}
 	}()
 	go func() {
 		for {
-			MkOrdr()
-			time.Sleep(time.Microsecond * 1)
+			MkOrdr() 
 		}
 	}()
-	time.Sleep(time.Second)
-	fmt.Println("done")
+
+	go func() {
+		for {
+			MkOrdr() 
+		}
+	}()
 
 	for {
-		MkOrdr()
-		time.Sleep(time.Microsecond * 1)
+		MkOrdr() 
 	}
 
 }

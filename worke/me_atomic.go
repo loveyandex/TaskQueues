@@ -88,7 +88,7 @@ func MongoMOE_Atomic() {
 
 			// fmt.Printf("\"counts \": %v\n",i )
 
-			ob, err := obc.BuyLimitOrders()
+			ob, err := obc.OrderBooks()
 			// fmt.Printf("len(ob): %v\n", len(ob))
 			if err != nil {
 				failOnError(err, "")
